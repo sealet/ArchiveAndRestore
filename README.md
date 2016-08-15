@@ -37,32 +37,40 @@ Repeat the above with Timelines, Images, Audio, Documents, Others, and Collectio
 ## Descriptions
 ### assetContentBackup.xml
 Input: AssetContent
+
 This workflow checks first to see if an asset should get a full backup or just needs to be truncated. If an asset is flagged for full backup it copies the file to the archive location and sets the restoreKey. If the archive process doesn't complete fully it will attempt two additional times to perform the archive. If the archive option is selected, it will also set the truncatedFlag and remove the mezznanine file.
 
 ### resetArchiveStatus.xml
 Input: AssetContent
+
 This workflow checks if a file currently exists in its mezzanine repository. If it does, it deletes any file found at the archive location for this asset and clears the restoreKey. If it does not it fails the workflow. If there is no file at the archive location then it just clears the restoreKey and ends.
 
 ### singleAssetArchive.xml
 Input: AssetMaster, archive or backup, overwrite flag
+
 This workflow outputs the current archive status of the asset selected. If the file is to be backed up and overwritten it calls the workflow "resetArchiveStatus" first and then "assetContentBackup". If the asset is not backed up, or backed up and flagged for archive the "assetContentBackup" workflow gets called. If nothing needs to be performed based on the input the workflow ends with nothing happening.
 
 ### collectionArchive.xml
 Input: AssetCollection, archive or backup, overwrite flag
+
 This workflow finds all the archive-able assets (everything except Clips and Projects) and sends them to the "singleAssetArchive" workflow.
 
 ### archiveTimeline.xml
 Input: Timeline, archive or backup, overwrite flag
+
 This workflow passes an asset to the "singleAssetArchive" workflow.
 
 ### restoreAsset.xml
 Input: AssetMaster
+
 This workflow tests if an asset is truncated. If it is, then it copies the archived file back to the mezzanine repository and sets the truncatedFlag to false.
 
 ### restoreCollection.xml
 Input: AssetCollection
+
 This workflow takes each archive-able asset in a collection and passes it to the "restoreAsset" workflow.
 
 ### restoreTimeline.xml
 Input: Timeline
+
 This workflow takes a timeline and passes it to the "restoreAsset" workflow.
