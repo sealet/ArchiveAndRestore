@@ -26,7 +26,7 @@ These workflows are used to backup or archive (removing the current mezzanine fi
 1. User selects the file or collection that will be restored.
 
 Testing Table
-1. Must have the following metadata fields in Reach Engine:
+Must have the following metadata fields in Reach Engine:
 |  Name         |  Label       |  Type        |  XML Name    |
 |  ------------ | ------------ | ------------ | ------------ | 
 |   videoID     |  videoID     |  Text(small) |  uuid        |
