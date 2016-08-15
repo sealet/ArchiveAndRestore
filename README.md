@@ -25,18 +25,6 @@ These workflows are used to backup or archive (removing the current mezzanine fi
 ### Restore
 1. User selects the file or collection that will be restored.
 
-Testing Table
-
-|  Name         |  Label       |  Type        |  XML Name    |
-|  ------------ | ------------ | ------------ | ------------ | 
-|   videoID     |  videoID     |  Text(small) |  uuid        |
-|   shootDate   |  shootDate   |  Date        |  date        |
-|   eventType   |  eventType   |  Text(small) |  event       |
-|   cameraCard  |  cameraCard  |  Text(small) |  cardNumber  |
-|   camera      |  camera      |  Text(small) |  camera      |
-|   shooter     |  shooter     |  Text(small) |  shooter     |
-
-
 ## Testing
 Import the workflows. 
 Attempt to backup a file that is currently in an untouched state, already backed up state, and archived state.
