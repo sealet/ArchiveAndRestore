@@ -1,0 +1,93 @@
+<!--
+  ~ Levels Beyond CONFIDENTIAL
+  ~
+  ~ Copyright 2003 - 2016 Levels Beyond Incorporated
+  ~ All Rights Reserved.
+  ~
+  ~ NOTICE:  All information contained herein is, and remains
+  ~ the property of Levels Beyond Incorporated and its suppliers,
+  ~ if any.  The intellectual and technical concepts contained
+  ~ herein are proprietary to Levels Beyond Incorporated
+  ~ and its suppliers and may be covered by U.S. and Foreign Patents,
+  ~ patents in process, and are protected by trade secret or copyright law.
+  ~ Dissemination of this information or reproduction of this material
+  ~ is unlawful and strictly forbidden unless prior written permission is obtained
+  ~ from Levels Beyond Incorporated.
+  -->
+
+<workflow xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://levelsbeyond.com/schema/workflow"
+    xsi:schemaLocation="http://levelsbeyond.com/schema/workflow http://www.levelsbeyond.com/schema/latest/studio.xsd"
+    xmlns:nimbus="http://levelsbeyond.com/schema/workflow/nimbus"
+    id="singleAssetArchive"
+    name="Archive Single Asset"
+    description=""
+    
+    executionLabelExpression="Archive Single Asset | Working on asset ${subject.name}"
+    deadlineExpression=""
+    subjectDOClassName="AssetMaster"
+    showInUserInterface="true"
+    
+    
+    sdkVersion="5.4">
+    
+    <initialStepName>Current Asset Status</initialStepName>
+    
+    <!-- Check if asset is Truncated already: do nothing -->
+    <!-- Check if asset is backed up, not truncated, and flagged for overwrite: redo backup -->
+    <!-- Else: Do Nothing -->
+    <noopStep name="Current Asset Status"
+        executionLabelExpression="Asset is ${truncatedBool == true ? 'truncated' : 'available'}, ${ restoreKeyBool == true ? 'Restore Key is present': 'No restoreKey'}, Overwrite is: ${overwrite == true? 'true' : 'false'} ">
+        <transition condition="${restoreKeyBool == false AND truncatedBool == false}">
+            <targetStepName>Backup Content</targetStepName>
+        </transition>
+        <transition condition="${restoreKeyBool == true AND truncatedBool == false AND operation == 'archive'}">
+            <targetStepName>Backup Content</targetStepName>
+        </transition>
+        <transition condition="${restoreKeyBool == true AND truncatedBool == false AND overwrite == true}" >
+            <targetStepName>Reset Archive Status</targetStepName>
+        </transition>
+        <transition condition="${true}">
+            <targetStepName>No Work Needed</targetStepName>
+        </transition>
+    </noopStep>
+    
+    <!-- Send Asset to be reset for a fresh backup -->
+    <executeSubflowStep name="Reset Archive Status" targetWorkflowId="resetArchiveStatus"
+        executionLabelExpression="Removing restoreKey and old archived file"
+        subjectChangePath="${mezzContent}"
+        nextStep="Backup Content">
+    </executeSubflowStep>
+    
+    <!-- Backup Process -->
+    <!-- Call Backup Workflow: Pass flag to archive or not -->
+    <executeSubflowStep name="Backup Content" targetWorkflowId="assetContentBackup"
+        subjectChangePath="${mezzContent}"
+        executionLabelExpression="Sending mezzanine to be backed up or archived"
+        nextStep="end">
+        
+        <subflowContextDataMapping parentDataDef="operation" subflowDataDef="operation"/>
+    </executeSubflowStep>
+    
+    <noopStep name="No Work Needed"
+        executionLabelExpression="No work was needed on this asset"
+        nextStep="end"></noopStep>
+    
+    <noopStep name="end"/>
+    
+    <!-- Calculated Data Defs -->
+    <contextDataDef name="mezzContent" dataType="Data Object" defaultDataExpression="${subject.assetType == 'Video'? subject.timelineAssets[0].timeline.mainMezzanineContent : subject.mezzanine}"/>
+    <contextDataDef name="truncatedBool" dataType="Boolean" defaultDataExpression="${(mezzContent.truncatedFlag == false OR mezzContent.truncatedFlag == null)? false : true}"/>
+    <contextDataDef name="restoreKeyBool" dataType="Boolean" defaultDataExpression="${(mezzContent.restoreKey == '' OR mezzContent.restoreKey == null)? false : true}"/>
+    
+    <!-- User Input Data Defs -->
+    <contextDataDef name="operation" dataType="String" userInput="true" label="Archive or Backup" required="true">
+        <picklist>
+            <picklistItem value="archive" label="Archive" />
+            <picklistItem value="backup" label="Backup"/>
+        </picklist>
+    </contextDataDef>
+    
+    <contextDataDef name="overwrite" dataType="Boolean" userInput="true" label="Overwrite Existing Archived File?"/>
+    
+</workflow>

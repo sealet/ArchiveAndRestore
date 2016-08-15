@@ -1,0 +1,58 @@
+<!--
+  ~ Levels Beyond CONFIDENTIAL
+  ~
+  ~ Copyright 2003 - 2016 Levels Beyond Incorporated
+  ~ All Rights Reserved.
+  ~
+  ~ NOTICE:  All information contained herein is, and remains
+  ~ the property of Levels Beyond Incorporated and its suppliers,
+  ~ if any.  The intellectual and technical concepts contained
+  ~ herein are proprietary to Levels Beyond Incorporated
+  ~ and its suppliers and may be covered by U.S. and Foreign Patents,
+  ~ patents in process, and are protected by trade secret or copyright law.
+  ~ Dissemination of this information or reproduction of this material
+  ~ is unlawful and strictly forbidden unless prior written permission is obtained
+  ~ from Levels Beyond Incorporated.
+  -->
+
+<workflow xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://levelsbeyond.com/schema/workflow"
+    xsi:schemaLocation="http://levelsbeyond.com/schema/workflow http://www.levelsbeyond.com/schema/latest/studio.xsd"
+    xmlns:nimbus="http://levelsbeyond.com/schema/workflow/nimbus"
+    id="restoreVideo"
+    name="Restore Video"
+    description=""
+    
+    executionLabelExpression="Restore Video | Restoring Video: ${subject.name}"
+    deadlineExpression=""
+    subjectDOClassName="Timeline"
+    showInUserInterface="true"
+    
+    
+    sdkVersion="5.4">
+    
+    <initialStepName>Restore Timeline</initialStepName>
+    
+    <!-- Pass Timeline to restore asset workflow -->
+    <executeSubflowStep targetWorkflowId="restoreAsset" name="Restore Timeline"
+        subjectChangePath="${subject.mainVideoAsset}"
+        nextStep="Reindex">
+        
+    </executeSubflowStep>
+    
+    <!-- Reindex -->
+    <raiseWorkflowEventStep name="Reindex"
+        eventTypeExpression="ensureIndexed"
+        executionLabelExpression="Ensure Asset Indexed" 
+        >
+        
+        <transition condition="true">
+            <targetStepName>end</targetStepName>
+        </transition>
+        <property name="indexTargetRef">${subject}</property>   
+    </raiseWorkflowEventStep>
+    
+    
+    <noopStep name="end"/>
+    
+</workflow>

@@ -1,0 +1,93 @@
+<!--
+  ~ Levels Beyond CONFIDENTIAL
+  ~
+  ~ Copyright 2003 - 2016 Levels Beyond Incorporated
+  ~ All Rights Reserved.
+  ~
+  ~ NOTICE:  All information contained herein is, and remains
+  ~ the property of Levels Beyond Incorporated and its suppliers,
+  ~ if any.  The intellectual and technical concepts contained
+  ~ herein are proprietary to Levels Beyond Incorporated
+  ~ and its suppliers and may be covered by U.S. and Foreign Patents,
+  ~ patents in process, and are protected by trade secret or copyright law.
+  ~ Dissemination of this information or reproduction of this material
+  ~ is unlawful and strictly forbidden unless prior written permission is obtained
+  ~ from Levels Beyond Incorporated.
+  -->
+
+<workflow xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://levelsbeyond.com/schema/workflow"
+    xsi:schemaLocation="http://levelsbeyond.com/schema/workflow http://www.levelsbeyond.com/schema/latest/studio.xsd"
+    xmlns:nimbus="http://levelsbeyond.com/schema/workflow/nimbus"
+    id="resetArchiveStatus"
+    name="Reset Archive Status on Asset Content"
+    description=""
+    
+    executionLabelExpression="Reset Archive Status on Asset Content | Resetting Archive Status"
+    deadlineExpression=""
+    subjectDOClassName="AssetContent"
+    showInUserInterface="true"
+    
+    
+    sdkVersion="5.4">
+    
+    <initialStepName>Check if File is in Repo</initialStepName>
+    
+    <!-- Confirm Asset File exists in repo and whether there is an archived file to delete-->
+    <noopStep name="Check if File is in Repo"
+        executionLabelExpression="Printing full file path: ${subject.file.absolutePath}">
+        <transition condition="${!#fileExists(subject.file.absolutePath)}">
+            <targetStepName>Cannot Reset Archive</targetStepName>
+        </transition>
+        <transition condition="${#fileExists(subject.file.absolutePath) AND #fileExists(archivedFile)}">
+            <targetStepName>Delete Archive File</targetStepName>
+        </transition>
+        <transition condition="${#fileExists(subject.file.absolutePath) AND !#fileExists(archivedFile)}">
+            <targetStepName>Remove Restore Key</targetStepName>
+        </transition>
+        <transition condition="true">
+            <targetStepName>end</targetStepName>
+        </transition>
+    </noopStep>
+    
+    <!-- Delete Backup of File in Archive -->
+    <runCommandStep name="Delete Archive File"
+        executablePathExpression="/bin/sh"
+        executionLabelExpression="Removing Existing Archive File at ${archivedFile.absolutePath}"
+        nextStep="Remove Restore Key">
+        
+        <arg>-c</arg>
+        <arg>rm -f ${archivedFile.absolutePath}</arg>
+    </runCommandStep>
+    
+    <!-- Remove restoreKey -->
+    <saveDataObjectStep name="Remove Restore Key"
+        dataObjectExpression="${subject}"
+        executionLabelExpression="Nullifying restoreKey field: Check above to see if an archived file was found">
+
+        <transition condition="${true}">
+            <targetStepName>Reindex</targetStepName>
+        </transition>
+        <property name="restoreKey"></property>
+    </saveDataObjectStep>
+    
+    <!-- Reindex -->
+    <raiseWorkflowEventStep name="Reindex"
+        eventTypeExpression="ensureIndexed"
+        executionLabelExpression="Ensure Asset Indexed" 
+        >
+        
+        <transition condition="true">
+            <targetStepName>end</targetStepName>
+        </transition>
+        <property name="indexTargetRef">${subject}</property>   
+    </raiseWorkflowEventStep>
+    
+    <failWorkflowStep reasonExpression="Cannot Remove Archived File. The Source File, ${subject.file.path}, does not exist" name="Cannot Reset Archive"
+        executionLabelExpression="Cannot Remove Archived File. The Source File, ${subject.file.path}, does not exist"></failWorkflowStep>
+    
+    <noopStep name="end"/>
+    
+    <contextDataDef name="archivedFile" dataType="File" defaultDataExpression="${#sysconfig('workflow.archive.path') + '/' + subject.file.name}"/>
+    
+</workflow>

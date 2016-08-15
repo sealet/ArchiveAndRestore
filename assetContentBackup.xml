@@ -1,0 +1,186 @@
+<!--
+  ~ Levels Beyond CONFIDENTIAL
+  ~
+  ~ Copyright 2003 - 2016 Levels Beyond Incorporated
+  ~ All Rights Reserved.
+  ~
+  ~ NOTICE:  All information contained herein is, and remains
+  ~ the property of Levels Beyond Incorporated and its suppliers,
+  ~ if any.  The intellectual and technical concepts contained
+  ~ herein are proprietary to Levels Beyond Incorporated
+  ~ and its suppliers and may be covered by U.S. and Foreign Patents,
+  ~ patents in process, and are protected by trade secret or copyright law.
+  ~ Dissemination of this information or reproduction of this material
+  ~ is unlawful and strictly forbidden unless prior written permission is obtained
+  ~ from Levels Beyond Incorporated.
+  -->
+
+<workflow xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://levelsbeyond.com/schema/workflow"
+    xsi:schemaLocation="http://levelsbeyond.com/schema/workflow http://www.levelsbeyond.com/schema/latest/studio.xsd"
+    xmlns:nimbus="http://levelsbeyond.com/schema/workflow/nimbus"
+    id="assetContentBackup"
+    name="Backup Asset Content"
+    description=""
+    
+    executionLabelExpression="Archiving Mezzanine Content for: ${subject.file.name}"
+    deadlineExpression=""
+    subjectDOClassName="AssetContent"
+    showInUserInterface="true"
+    
+    
+    sdkVersion="5.4">
+    
+    <initialStepName>Archive or Backup</initialStepName>
+    
+    <noopStep name="Archive or Backup"
+        executionLabelExpression="Check if file needs to be sent to archive or just truncated">
+        <transition condition="${operation == 'archive' AND subject.restoreKey != null AND !subject.restoreKey.equals('') AND subject.truncatedFlag == false}">
+            <targetStepName>Remove Main File</targetStepName>
+        </transition>
+        <transition condition="${true}">
+            <targetStepName>Copy File to Archive</targetStepName>
+        </transition>
+    </noopStep>
+    
+    <!-- Copy File into Archive Location -->
+    <runCommandStep name="Copy File to Archive"
+        executablePathExpression="/bin/cp"
+        executionLabelExpression="Backing up File: ${subject.file.name}"
+        nextStep="Set Archived File">
+        
+        <arg>${subject.file.absolutePath}</arg>
+        <arg>${#sysconfig('workflow.archive.path')}</arg>
+    </runCommandStep>
+    
+    <!-- Set a file object so the mezz file can be compared to the archived file -->
+    <setContextData name="Set Archived File"
+        devStep="true"
+        targetDataDef="archivedFile"
+        valueExpression="${#sysconfig('workflow.archive.path') + '/' + subject.file.name}"
+        nextStep="Validate Archive Status"/>
+    
+    <!-- Confirm that the file is in the Archive Location AND is the same-->
+    <noopStep name="Validate Archive Status"
+        executionLabelExpression="Checking to see if the backed up file exists and is the correct size">
+        <transition condition="${#fileExists(archivedFile) AND archivedFile.length() == subject.file.length()}">
+            <targetStepName>Set Restore Key</targetStepName>
+        </transition>
+        <transition condition="${loopCount &gt; LOOP_MAX}">
+            <targetStepName>Archive Failed</targetStepName>
+        </transition>
+        <transition condition="${true}">
+            <targetStepName>Remove Restore Key</targetStepName>
+        </transition>
+    </noopStep>
+    
+    <!-- If there: Set Restore Key -->
+    <!-- if archive, continue. if backup, end -->
+    <saveDataObjectStep name="Set Restore Key"
+        dataObjectExpression="${subject}"
+        executionLabelExpression="Validate Successful: Setting Restore Key">
+        
+        <transition condition="${operation == 'archive'}">
+            <targetStepName>Remove Main File</targetStepName>
+        </transition>
+        <transition condition="${true}">
+            <targetStepName>Reindex</targetStepName>
+        </transition>
+        
+        <property name="restoreKey">${#sysconfig('workflow.archive.path') + '/' + subject.file.name}</property>
+    </saveDataObjectStep>
+    
+    
+    
+    <!-- If there and Archive is true:.................................................................... -->
+    <!-- remove file -->
+    <runCommandStep name="Remove Main File"
+        executablePathExpression="/bin/sh"
+        executionLabelExpression="Archive was selected. Removing Mezz File from Repository"
+        nextStep="Set as Truncated">
+        
+        <arg>-c</arg>
+        <arg>rm -f ${subject.file.absolutePath}</arg>
+    </runCommandStep>
+    
+    <!-- set as truncated -->
+    <saveDataObjectStep name="Set as Truncated"
+        dataObjectExpression="${subject}"
+        executionLabelExpression="Setting Asset as Archived"
+        nextStep="Reindex">
+        
+        <property name="truncatedFlag">true</property>
+    </saveDataObjectStep>
+    <!-- End of Archive steps ........................................................................... -->
+    
+    
+    
+    
+    <!-- START: Reset Status to try again ................................................................ -->
+    <!-- If not there: remove any restore key -->
+    <saveDataObjectStep name="Remove Restore Key"
+        dataObjectExpression="${subject}"
+        executionLabelExpression="Validation Failed. Nullifying restoreKey field">
+        
+        <transition condition="${#fileExists(archivedFile)}">
+            <targetStepName>Delete Failed Archive File</targetStepName>
+        </transition>
+        <transition condition="${true}">
+            <targetStepName>Increment Counter</targetStepName>
+        </transition>
+        <property name="restoreKey"></property>
+    </saveDataObjectStep>
+    
+    <!-- delete bad file -->
+    <runCommandStep name="Delete Failed Archive File"
+        executablePathExpression="/bin/sh"
+        executionLabelExpression="Removing Failed Archive File"
+        nextStep="Increment Counter">
+        
+        <arg>-c</arg>
+        <arg>rm -f ${archivedFile.absolutePath}</arg>
+    </runCommandStep>
+    
+    <!-- Loop back to try again -->
+    <setContextData name="Increment Counter"
+        executionLabelExpression="Attempt ${loopCount + 1} failed. Trying Again."
+        targetDataDef="loopCount"
+        valueExpression="${loopCount + 1}"
+        nextStep="Copy File to Archive"/>
+    
+    <!-- END: Reset Archive Status ...................................................................... -->
+    
+    <!-- If it doesn't work, Fail workflow -->
+    <failWorkflowStep name="Archive Failed" 
+        executionLabelExpression="Archive Failed for asset: ${subject.name}" 
+        reasonExpression="Archive Failed for asset: ${subject.name}"/>
+    
+    <raiseWorkflowEventStep name="Reindex"
+        eventTypeExpression="ensureIndexed"
+        executionLabelExpression="Ensure Asset Indexed" 
+        >
+        
+        <transition condition="true">
+            <targetStepName>end</targetStepName>
+        </transition>
+        <property name="indexTargetRef">${subject}</property>   
+    </raiseWorkflowEventStep>
+    
+    <noopStep name="end"/>
+    
+    
+    <!-- User Input Data Defs -->
+    <contextDataDef name="operation" dataType="String" userInput="true" label="Archive or Backup" required="true">
+        <picklist>
+            <picklistItem value="archive" label="Archive" />
+            <picklistItem value="backup" label="Backup"/>
+        </picklist>
+    </contextDataDef>
+    
+    <contextDataDef name="overwrite" dataType="Boolean" userInput="true" label="Overwrite Existing Archived File?"/>
+    
+    <!-- Internal Data Defs -->
+    <contextDataDef name="archivedFile" dataType="File"/>
+    <contextDataDef name="LOOP_MAX" dataType="Integer" defaultDataExpression="2"/>
+    <contextDataDef name="loopCount" dataType="Integer" defaultDataExpression="0"/>
+</workflow>
